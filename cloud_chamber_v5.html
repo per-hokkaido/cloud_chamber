@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>仮想霧箱シミュレーション</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+      background: #0a0a10;
+      min-height: 100vh;
+      min-height: 100dvh;
+      color: #e0e0e0;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    .header {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .main-area {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    @media (min-width: 768px) {
+      .main-area {
+        flex-direction: row;
+        padding: 12px;
+        gap: 12px;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .main-area {
+        flex-direction: column;
+      }
+    }
+
+    .chamber-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    @media (max-width: 767px) {
+      .chamber-section {
+        flex: none;
+        height: 55vh;
+        height: 55dvh;
+        padding: 8px;
+      }
+    }
+
+    .chamber-frame {
+      flex: 1;
+      background: linear-gradient(145deg, #1e2832 0%, #0f1518 100%);
+      border-radius: 12px;
+      padding: 8px;
+      box-shadow: 
+        0 4px 24px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .chamber-glass {
+      width: 100%;
+      height: 100%;
+      background: #020204;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 40px rgba(0, 30, 60, 0.3);
+    }
+
+    .chamber-glass::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.02) 0%,
+        transparent 40%
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #chamberCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .magnetic-indicator {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.85);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 20;
+    }
+
+    .magnetic-indicator.active {
+      opacity: 1;
+    }
+
+    .magnetic-indicator .symbol {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #4fc3f7;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: #4fc3f7;
+    }
+
+    .control-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    @media (min-width: 768px) {
+      .control-section {
+        width: 280px;
+        overflow-y: auto;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .control-section {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        padding-bottom: 20px;
+      }
+    }
+
+    .control-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .control-card h3 {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    .source-select {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-bottom: 10px;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    .source-select option {
+      background: #1a1a2e;
+    }
+
+    .source-info {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.85rem;
+    }
+
+    .nuclide-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .nuclide-name {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .radiation-badge {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.12);
+      color: #ccc;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .info-grid .value {
+      text-align: right;
+      color: #bbb;
+    }
+
+    .mode-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 12px 8px;
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: #888;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: rgba(79, 195, 247, 0.2);
+      color: #fff;
+    }
+
+    .emit-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 8px;
+      border: none;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+    }
+
+    .emit-btn.visible {
+      display: block;
+    }
+
+    .emit-btn:active {
+      transform: scale(0.98);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 28px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 28px;
+      transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 3px;
+      bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: #4fc3f7;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.15);
+      -webkit-appearance: none;
+    }
+
+    .slider-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #4fc3f7;
+      cursor: pointer;
+    }
+
+    .slider-row input[type="range"]:disabled {
+      opacity: 0.3;
+    }
+
+    .slider-value {
+      min-width: 45px;
+      text-align: right;
+      font-size: 0.85rem;
+      color: #4fc3f7;
+    }
+
+    .timer-display {
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    .timer-time {
+      font-size: 2rem;
+      font-weight: 300;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .timer-bq {
+      font-size: 1.1rem;
+      color: #4fc3f7;
+      margin-top: 4px;
+    }
+
+    .timer-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .timer-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .timer-btn.start {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .timer-btn.stop {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .timer-btn.reset {
+      background: rgba(255, 255, 255, 0.1);
+      color: #888;
+    }
+
+    .timer-btn:active {
+      transform: scale(0.97);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 4px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .action-btn.pause {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+
+    .action-btn.clear {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+
+    .action-btn:active {
+      transform: scale(0.97);
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      padding: 8px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .legend-dot {
+      width: 24px;
+      height: 6px;
+      border-radius: 3px;
+      background: radial-gradient(ellipse at 30% 50%, rgba(255,255,255,0.8), rgba(255,255,255,0.2));
+    }
+
+    .legend-dot.alpha { height: 6px; }
+    .legend-dot.beta { height: 4px; opacity: 0.7; }
+    .legend-dot.gamma { 
+      background: none;
+      border-bottom: 2px dotted rgba(255,255,255,0.4);
+      height: 0;
+    }
+
+    @media (max-width: 767px) {
+      .legend { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <h1>☁️ 仮想霧箱</h1>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot alpha"></div>α線</div>
+        <div class="legend-item"><div class="legend-dot beta"></div>β線</div>
+        <div class="legend-item"><div class="legend-dot gamma"></div>γ線</div>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <div class="chamber-section">
+        <div class="chamber-frame">
+          <div class="chamber-glass">
+            <canvas id="chamberCanvas"></canvas>
+            <div class="magnetic-indicator" id="magneticIndicator">
+              <div class="symbol">⊙</div>
+              <span>磁場 ON</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <div class="control-card">
+          <h3>☢️ 線源</h3>
+          <select class="source-select" id="sourceSelect">
+            <optgroup label="α線源">
+              <option value="Po-210">Po-210（ポロニウム）</option>
+              <option value="Am-241" selected>Am-241（アメリシウム）</option>
+              <option value="Ra-226">Ra-226（ラジウム）</option>
+            </optgroup>
+            <optgroup label="β線源">
+              <option value="Sr-90">Sr-90（ストロンチウム）</option>
+              <option value="C-14">C-14（炭素）</option>
+            </optgroup>
+            <optgroup label="γ線源">
+              <option value="Co-60">Co-60（コバルト）</option>
+              <option value="Cs-137">Cs-137（セシウム）</option>
+            </optgroup>
+            <optgroup label="教育用">
+              <option value="mixed">混合線源</option>
+            </optgroup>
+          </select>
+          <div class="source-info">
+            <div class="nuclide-header">
+              <span class="nuclide-name" id="nuclideName">Am-241</span>
+              <span class="radiation-badge" id="radiationBadge">α</span>
+            </div>
+            <div class="info-grid">
+              <span>半減期</span><span class="value" id="halfLife">432年</span>
+              <span>放出</span><span class="value" id="decayRate">中程度</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <h3>⚡ 発射モード</h3>
+          <div class="mode-row">
+            <button class="mode-btn active" data-mode="continuous">連続</button>
+            <button class="mode-btn" data-mode="single">1本ずつ</button>
+          </div>
+          <button class="emit-btn" id="emitBtn">粒子を発射</button>
+        </div>
+
+        <div class="control-card">
+          <h3>🧲 磁場</h3>
+          <div class="toggle-row">
+            <span>磁場をかける</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="magneticToggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="slider-row">
+            <input type="range" id="magneticSlider" min="0.1" max="1.0" step="0.1" value="0.5" disabled>
+            <span class="slider-value" id="magneticValue">0.5 T</span>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <h3>⏱️ 計測（ベクレル）</h3>
+          <div class="timer-display">
+            <div class="timer-time" id="timerDisplay">00:00.0</div>
+            <div class="timer-bq" id="bqDisplay">— Bq</div>
+          </div>
+          <div class="timer-buttons">
+            <button class="timer-btn start" id="timerStartBtn">▶ 開始</button>
+            <button class="timer-btn reset" id="timerResetBtn">リセット</button>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-box"><div class="stat-num" id="alphaCount">0</div><div class="stat-label">α</div></div>
+            <div class="stat-box"><div class="stat-num" id="betaCount">0</div><div class="stat-label">β</div></div>
+            <div class="stat-box"><div class="stat-num" id="gammaCount">0</div><div class="stat-label">γ</div></div>
+            <div class="stat-box"><div class="stat-num" id="totalCount">0</div><div class="stat-label">計</div></div>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <div class="action-row">
+            <button class="action-btn pause" id="pauseBtn">⏸ 停止</button>
+            <button class="action-btn clear" id="clearBtn">🗑 クリア</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== キャンバス初期化 ==========
+    const canvas = document.getElementById('chamberCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // ========== 核種データ ==========
+    const nuclideData = {
+      'Po-210': { name: 'Po-210', halfLife: '138日', decayRate: '高', radiations: ['alpha'], emitProb: 0.016 },
+      'Am-241': { name: 'Am-241', halfLife: '432年', decayRate: '中', radiations: ['alpha'], emitProb: 0.009 },
+      'Ra-226': { name: 'Ra-226', halfLife: '1600年', decayRate: '低', radiations: ['alpha', 'beta', 'gamma'], emitProb: 0.004 },
+      'Sr-90':  { name: 'Sr-90', halfLife: '29年', decayRate: '高', radiations: ['beta'], emitProb: 0.014 },
+      'C-14':   { name: 'C-14', halfLife: '5730年', decayRate: '極低', radiations: ['beta'], emitProb: 0.003 },
+      'Co-60':  { name: 'Co-60', halfLife: '5.3年', decayRate: '極高', radiations: ['beta', 'gamma'], emitProb: 0.020 },
+      'Cs-137': { name: 'Cs-137', halfLife: '30年', decayRate: '高', radiations: ['beta', 'gamma'], emitProb: 0.013 },
+      'mixed':  { name: '混合', halfLife: '—', decayRate: '中', radiations: ['alpha', 'beta', 'gamma'], emitProb: 0.010 }
+    };
+
+    // ========== 状態 ==========
+    let fogClouds = [];
+    let particles = [];
+    let currentNuclide = 'Am-241';
+    let emitMode = 'continuous';
+    let magneticOn = false;
+    let magneticStrength = 0.5;
+    let isPaused = false;
+
+    // タイマー
+    let timerRunning = false;
+    let timerStartTime = 0;
+    let timerElapsed = 0;
+    let countsDuringTimer = 0;
+
+    // 統計
+    let stats = { alpha: 0, beta: 0, gamma: 0 };
+
+    // ========== 粒子パラメータ（飛跡の太さを調整） ==========
+    const particleParams = {
+      // α線: 太さを控えめに（以前の14→7）、密度も調整
+      alpha: { mass: 4, charge: +2, speed: 2.2, range: 0.16, density: 0.8, cloudSize: 7, scatter: 0.005 },
+      // β線: 少し細め
+      beta:  { mass: 0.0005, charge: -1, speed: 5.5, range: 0.50, density: 0.4, cloudSize: 5, scatter: 0.08 },
+      // γ線: まばら
+      gamma: { mass: 0, charge: 0, speed: 9, range: 0.80, density: 0.15, cloudSize: 3.5, scatter: 0 }
+    };
+
+    // ========== 霧雲クラス ==========
+    class FogCloud {
+      constructor(x, y, size, intensity) {
+        this.x = x;
+        this.y = y;
+        this.baseSize = size;
+        this.size = size;
+        this.intensity = intensity;
+        this.life = 1.0;
+        this.vx = (Math.random() - 0.5) * 0.06;
+        this.vy = (Math.random() - 0.5) * 0.06;
+      }
+
+      update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.size = this.baseSize * (1 + (1 - this.life) * 1.0);
+        this.life -= dt * 0.009;
+        return this.life > 0;
+      }
+
+      draw(ctx) {
+        const alpha = this.life * this.intensity;
+        const grad = ctx.createRadialGradient(
+          this.x, this.y, 0,
+          this.x, this.y, this.size
+        );
+        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.8})`);
+        grad.addColorStop(0.35, `rgba(240, 248, 255, ${alpha * 0.45})`);
+        grad.addColorStop(0.65, `rgba(220, 235, 255, ${alpha * 0.15})`);
+        grad.addColorStop(1, 'rgba(200, 220, 255, 0)');
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+    }
+
+    // ========== 粒子クラス ==========
+    class Particle {
+      constructor(type) {
+        const p = particleParams[type];
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+
+        this.type = type;
+        this.mass = p.mass;
+        this.charge = p.charge;
+        this.density = p.density;
+        this.cloudSize = p.cloudSize;
+        this.scatter = p.scatter;
+
+        this.x = cx;
+        this.y = cy;
+
+        const angle = Math.random() * Math.PI * 2;
+        const speed = p.speed * (0.85 + Math.random() * 0.3);
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+
+        const maxDim = Math.max(rect.width, rect.height);
+        this.maxDist = maxDim * p.range * (0.7 + Math.random() * 0.6);
+        this.traveled = 0;
+        this.alive = true;
+        this.cloudAccum = 0;
+
+        stats[type]++;
+        if (timerRunning) countsDuringTimer++;
+        updateStats();
+      }
+
+      update(dt) {
+        if (!this.alive) return;
+        const rect = canvas.getBoundingClientRect();
+
+        // ローレンツ力
+        if (magneticOn && this.charge !== 0) {
+          const B = magneticStrength * 35;
+          const f = (this.charge * B) / (this.mass * 100 + 0.1);
+          this.vx += this.vy * f * dt;
+          this.vy -= this.vx * f * dt;
+        }
+
+        // 散乱
+        if (this.scatter > 0 && Math.random() < this.scatter * dt) {
+          const a = (Math.random() - 0.5) * Math.PI * 0.2;
+          const c = Math.cos(a), s = Math.sin(a);
+          const nvx = this.vx * c - this.vy * s;
+          const nvy = this.vx * s + this.vy * c;
+          this.vx = nvx;
+          this.vy = nvy;
+        }
+
+        const dx = this.vx * dt;
+        const dy = this.vy * dt;
+        this.x += dx;
+        this.y += dy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        this.traveled += dist;
+
+        // 霧雲を生成
+        this.cloudAccum += dist * this.density;
+        while (this.cloudAccum >= 1) {
+          this.cloudAccum -= 1;
+          const ox = (Math.random() - 0.5) * this.cloudSize * 0.4;
+          const oy = (Math.random() - 0.5) * this.cloudSize * 0.4;
+          const size = this.cloudSize * (0.6 + Math.random() * 0.7);
+          const intensity = 0.5 + Math.random() * 0.5;
+          fogClouds.push(new FogCloud(this.x + ox, this.y + oy, size, intensity));
+        }
+
+        // 消滅
+        if (this.traveled >= this.maxDist ||
+            this.x < -20 || this.x > rect.width + 20 ||
+            this.y < -20 || this.y > rect.height + 20) {
+          this.alive = false;
+        }
+      }
+    }
+
+    // ========== 線源描画 ==========
+    function drawSource(ctx, x, y, r) {
+      ctx.save();
+      
+      const g = ctx.createRadialGradient(x - r*0.3, y - r*0.3, 0, x, y, r);
+      g.addColorStop(0, '#555');
+      g.addColorStop(0.7, '#333');
+      g.addColorStop(1, '#1a1a1a');
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = '#0a0a0a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const t = Date.now() / 1000;
+      const glow = 0.35 + 0.15 * Math.sin(t * 1.8);
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200, 220, 255, ${glow})`;
+      ctx.shadowColor = 'rgba(150, 200, 255, 0.6)';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ========== 背景 ==========
+    function drawBackground(ctx, w, h) {
+      ctx.fillStyle = '#030306';
+      ctx.fillRect(0, 0, w, h);
+
+      const t = Date.now() / 6000;
+      const gx = w * (0.4 + 0.2 * Math.sin(t));
+      const gy = h * (0.4 + 0.2 * Math.cos(t * 0.8));
+      const grad = ctx.createRadialGradient(gx, gy, 0, w/2, h/2, Math.max(w,h) * 0.6);
+      grad.addColorStop(0, 'rgba(60, 80, 120, 0.02)');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      const light = ctx.createLinearGradient(0, 0, w * 0.5, h * 0.3);
+      light.addColorStop(0, 'rgba(255, 250, 245, 0.015)');
+      light.addColorStop(1, 'transparent');
+      ctx.fillStyle = light;
+      ctx.fillRect(0, 0, w, h);
+
+      const vig = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.2, w/2, h/2, Math.max(w,h)*0.65);
+      vig.addColorStop(0, 'transparent');
+      vig.addColorStop(1, 'rgba(0,0,0,0.55)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+
+      if (magneticOn) {
+        ctx.fillStyle = 'rgba(79, 195, 247, 0.04)';
+        const sp = 40;
+        for (let x = sp; x < w; x += sp) {
+          for (let y = sp; y < h; y += sp) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    // ========== 描画 ==========
+    function draw() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+
+      drawBackground(ctx, w, h);
+
+      for (const cloud of fogClouds) {
+        cloud.draw(ctx);
+      }
+
+      drawSource(ctx, w/2, h/2, 16);
+    }
+
+    // ========== 更新 ==========
+    function update(dt) {
+      for (let i = fogClouds.length - 1; i >= 0; i--) {
+        if (!fogClouds[i].update(dt)) {
+          fogClouds.splice(i, 1);
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update(dt);
+        if (!particles[i].alive) {
+          particles.splice(i, 1);
+        }
+      }
+
+      if (emitMode === 'continuous' && !isPaused) {
+        const n = nuclideData[currentNuclide];
+        if (Math.random() < n.emitProb) {
+          const rads = n.radiations;
+          const type = rads[Math.floor(Math.random() * rads.length)];
+          particles.push(new Particle(type));
+        }
+      }
+    }
+
+    // ========== タイマー ==========
+    function updateTimer() {
+      if (!timerRunning) return;
+      timerElapsed = (Date.now() - timerStartTime) / 1000;
+      
+      const min = Math.floor(timerElapsed / 60);
+      const sec = timerElapsed % 60;
+      document.getElementById('timerDisplay').textContent = 
+        `${String(min).padStart(2, '0')}:${sec.toFixed(1).padStart(4, '0')}`;
+      
+      if (timerElapsed > 0) {
+        const bq = countsDuringTimer / timerElapsed;
+        document.getElementById('bqDisplay').textContent = bq.toFixed(2) + ' Bq';
+      }
+    }
+
+    // ========== メインループ ==========
+    let lastTime = 0;
+    function animate(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.1) || 0.016;
+      lastTime = time;
+
+      if (!isPaused) {
+        update(dt * 60);
+      }
+      draw();
+      updateTimer();
+
+      requestAnimationFrame(animate);
+    }
+
+    // ========== UI関数 ==========
+    function updateStats() {
+      document.getElementById('alphaCount').textContent = stats.alpha;
+      document.getElementById('betaCount').textContent = stats.beta;
+      document.getElementById('gammaCount').textContent = stats.gamma;
+      document.getElementById('totalCount').textContent = stats.alpha + stats.beta + stats.gamma;
+    }
+
+    function updateSourceInfo() {
+      const n = nuclideData[currentNuclide];
+      document.getElementById('nuclideName').textContent = n.name;
+      document.getElementById('halfLife').textContent = n.halfLife;
+      document.getElementById('decayRate').textContent = n.decayRate;
+      const badge = document.getElementById('radiationBadge');
+      badge.textContent = n.radiations.map(r => r === 'alpha' ? 'α' : r === 'beta' ? 'β' : 'γ').join('/');
+    }
+
+    // ========== 計測リセット関数 ==========
+    function resetMeasurement() {
+      // タイマーを停止してリセット
+      timerRunning = false;
+      timerElapsed = 0;
+      countsDuringTimer = 0;
+      
+      // UI更新
+      const timerStartBtn = document.getElementById('timerStartBtn');
+      timerStartBtn.textContent = '▶ 開始';
+      timerStartBtn.classList.remove('stop');
+      timerStartBtn.classList.add('start');
+      document.getElementById('timerDisplay').textContent = '00:00.0';
+      document.getElementById('bqDisplay').textContent = '— Bq';
+      
+      // 統計もリセット
+      stats = { alpha: 0, beta: 0, gamma: 0 };
+      updateStats();
+      
+      // 霧箱もクリア
+      fogClouds = [];
+      particles = [];
+    }
+
+    // ========== イベント ==========
+    document.getElementById('sourceSelect').addEventListener('change', e => {
+      currentNuclide = e.target.value;
+      updateSourceInfo();
+      // 線源を変えたら計測をリセット
+      resetMeasurement();
+    });
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        emitMode = btn.dataset.mode;
+        document.getElementById('emitBtn').classList.toggle('visible', emitMode === 'single');
+      });
+    });
+
+    document.getElementById('emitBtn').addEventListener('click', () => {
+      const n = nuclideData[currentNuclide];
+      const rads = n.radiations;
+      const type = rads[Math.floor(Math.random() * rads.length)];
+      particles.push(new Particle(type));
+    });
+
+    const magneticToggle = document.getElementById('magneticToggle');
+    const magneticSlider = document.getElementById('magneticSlider');
+    const magneticIndicator = document.getElementById('magneticIndicator');
+
+    magneticToggle.addEventListener('change', () => {
+      magneticOn = magneticToggle.checked;
+      magneticSlider.disabled = !magneticOn;
+      magneticIndicator.classList.toggle('active', magneticOn);
+    });
+
+    magneticSlider.addEventListener('input', () => {
+      magneticStrength = parseFloat(magneticSlider.value);
+      document.getElementById('magneticValue').textContent = magneticStrength.toFixed(1) + ' T';
+    });
+
+    // タイマー開始/停止
+    const timerStartBtn = document.getElementById('timerStartBtn');
+    timerStartBtn.addEventListener('click', () => {
+      if (!timerRunning) {
+        timerRunning = true;
+        timerStartTime = Date.now() - timerElapsed * 1000;
+        timerStartBtn.textContent = '⏸ 停止';
+        timerStartBtn.classList.remove('start');
+        timerStartBtn.classList.add('stop');
+      } else {
+        timerRunning = false;
+        timerStartBtn.textContent = '▶ 開始';
+        timerStartBtn.classList.remove('stop');
+        timerStartBtn.classList.add('start');
+      }
+    });
+
+    // タイマーリセット
+    document.getElementById('timerResetBtn').addEventListener('click', () => {
+      timerRunning = false;
+      timerElapsed = 0;
+      countsDuringTimer = 0;
+      timerStartBtn.textContent = '▶ 開始';
+      timerStartBtn.classList.remove('stop');
+      timerStartBtn.classList.add('start');
+      document.getElementById('timerDisplay').textContent = '00:00.0';
+      document.getElementById('bqDisplay').textContent = '— Bq';
+      // 統計もリセット
+      stats = { alpha: 0, beta: 0, gamma: 0 };
+      updateStats();
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', function() {
+      isPaused = !isPaused;
+      this.textContent = isPaused ? '▶ 再開' : '⏸ 停止';
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      fogClouds = [];
+      particles = [];
+      stats = { alpha: 0, beta: 0, gamma: 0 };
+      updateStats();
+    });
+
+    // 初期化
+    updateSourceInfo();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
